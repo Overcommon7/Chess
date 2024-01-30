@@ -21,6 +21,9 @@ void PlayerManager::Update(float deltaTime)
 
     if (currentPlayer.Update(deltaTime, otherPlayerPieces))
         SwapPlayers();
+
+    if (IsKeyPressed(KEY_S))
+        SwapPlayers();
 }
 
 void PlayerManager::Draw()

@@ -113,6 +113,12 @@ void Player::LateDraw(const vector<unique_ptr<Piece>>& otherPieces) const
 
 void Player::OnTurnBegin(const vector<unique_ptr<Piece>>& otherPieces)
 {
+	if (king->IsCaptured())
+	{
+		mHasLost = true;
+		return;
+	}
+
 	mInCheck = king->IsCheck(mPieces, otherPieces);
 
 	auto it = mPieces.begin();
@@ -210,11 +216,12 @@ void Player::RemoveMovesThatCheck(const vector<unique_ptr<Piece>>& otherPieces, 
 {
 	//Go through all moves and check to see if that move would result in a Check If It Does Reemove it
 	auto it = std::remove_if(moves.begin(), moves.end(), [this, &piece, &otherPieces](const Vector2Int move) {
-		
+
 		auto oldPosition = piece->GetGridPosition();
 		piece->SetPosition(move);
 
-		bool isCheck = king->IsCheck(mPieces, otherPieces);
+		Piece* killingPiece = TryGetPiece(otherPieces, move);
+		bool isCheck = king->IsCheck(mPieces, otherPieces, killingPiece);
 		piece->SetPosition(oldPosition);
 		return isCheck;
 

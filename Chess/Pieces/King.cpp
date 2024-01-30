@@ -22,10 +22,12 @@ vector<Vector2Int> King::GetPotentialMoves(const vector<unique_ptr<Piece>>& your
     return moves;
 }
 
-bool King::IsCheck(const vector<unique_ptr<Piece>>& yourPieces, const vector<unique_ptr<Piece>>& otherPieces)
+bool King::IsCheck(const vector<unique_ptr<Piece>>& yourPieces, const vector<unique_ptr<Piece>>& otherPieces, const Piece* ignorePiece)
 {
     for (auto& piece : otherPieces)
     {
+        if (ignorePiece != nullptr && piece.get() == ignorePiece) continue;
+
         auto pieceMoves = piece->GetPotentialMoves(otherPieces, yourPieces);
         auto it = std::find(pieceMoves.begin(), pieceMoves.end(), mGridPosition);
 
