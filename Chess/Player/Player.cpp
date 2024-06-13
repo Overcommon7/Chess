@@ -8,6 +8,8 @@
 #include "Pieces/Queen.h"
 #include "Pieces/Rook.h"
 
+#include "Camera/Camera.h"
+
 namespace
 {
 	constexpr int NUM_OF_PAWNS = 8;
@@ -34,7 +36,7 @@ bool Player::Update(float deltaTime, const vector<unique_ptr<Piece>>& otherPiece
 	if (!mIsTurn)
 		return false;
 
-	Vector2 mousePosition = GetMousePosition();
+	Vector2 mousePosition = Render::Camera::GetMousePosition(0);
 	for (const auto& piece : mPieces)
 	{
 		if (!CheckCollisionPointRec(mousePosition, piece->Collider())) 

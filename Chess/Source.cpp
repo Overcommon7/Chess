@@ -1,6 +1,6 @@
-#include "pch.h"
-#include "Camera/Camera.h"
-#include "Player/PlayerManager.h"
+    #include "pch.h"
+    #include "Camera/Camera.h"
+    #include "Player/PlayerManager.h"
 
 int main()
 {
@@ -8,10 +8,11 @@ int main()
     InitWindow(800, 800, "Chess");
     SetTargetFPS(GetMonitorRefreshRate(GetCurrentMonitor()));
     {
+        
         Render::Camera camera;
         Piece::StaticInitialize("Textures/Pieces/");
         Texture2D board = LoadTexture("Textures/Board.png");
-        auto& fPlayerManager = PlayerManager::Get();
+        auto& playerManager = PlayerManager::Get();
 
 
         while (!WindowShouldClose())
@@ -19,14 +20,19 @@ int main()
             float deltaTime = GetFrameTime();
 
             camera.Update();
-            fPlayerManager.Update(deltaTime);
+            playerManager.Update(deltaTime);
 
             camera.BeginDrawing();
             {
                 DrawTexture(board, 0, 0, WHITE);
-                fPlayerManager.Draw();
+                playerManager.Draw();
             }
             camera.EndDrawing();
+
+            BeginDrawing();
+            ClearBackground(BLACK);
+            Render::Camera::DrawFrameBuffer();
+            EndDrawing();
         }
 
         UnloadTexture(board);

@@ -17,7 +17,7 @@ vector<Vector2Int> Pawn::GetPotentialMoves(const vector<unique_ptr<Piece>>& your
             }
         }
     
-        if (!hasMoved)
+        if (!hasMoved && !moves.empty())
         {
             Vector2Int move(mGridPosition.x, mGridPosition.y + (add * 2));
             if (!IsPiecePosition(yourPieces, move) && !IsPiecePosition(otherPieces, move))

@@ -14,15 +14,6 @@ namespace Render
 	{
 		EndMode2D();
 		EndTextureMode();
-
-		::BeginDrawing();
-		{
-			DrawTexturePro(renderTexture.texture,
-				{ 0, 0, (float)renderTexture.texture.width, -(float)renderTexture.texture.height },
-				{ renderPosition.x, renderPosition.y, renderSize.x, renderSize.y },
-				{ 0, 0 }, 0, tintColor);
-		}
-		::EndDrawing();
 	}
 
 	void Camera::SetClearColor(Color color)
@@ -40,48 +31,105 @@ namespace Render
 		this->center = center;
 	}
 
-	Camera::Camera()
+	void Camera::SetRenderPosition(Vector2 relativePosition)
+	{
+		this->relativePosition = Vector2Clamp(relativePosition, Vector2Zero(), Vector2One());
+
+		int screenHeight = GetScreenHeight();
+		int screenWidth = GetScreenWidth();
+
+		renderPosition.x = this->relativePosition.x * screenWidth;
+		renderPosition.y = this->relativePosition.y * screenHeight;	
+	}
+
+	Vector2Int Camera::GetMousePosition()
+	{
+		if (isMousePositionCached)
+			return cachedMousePosition;
+
+		cachedMousePosition = TransformPoint(::GetMousePosition());
+
+		isMousePositionCached = true;
+		return cachedMousePosition;
+	}
+
+	Camera::Camera(Vector2 renderPosition, Vector2 virtualScreenSize)
 		: camera({})
 		, renderPosition({})
 		, clearColor(BLACK)
 		, tintColor(WHITE)
 		, terminated(false)
-		, center(true)
+		, center(renderPosition.x < 0)
+		, usingVirtualScreenSize(true)
+		, id(ID++)
+		, isMousePositionCached(false)
+		, isActive(true)
 	{
 		if (!IsWindowReady())
 			throw std::exception("Window Must Be Created Before Camera Can Be Loaded");
 
-		renderSize.x = (float)GetScreenWidth();
-		renderSize.y = (float)GetScreenHeight();
+		Vector2 screenSize(GetScreenWidth(), GetScreenHeight());
+		if (virtualScreenSize.x < 0)
+		{
+			virtualScreenSize = screenSize;
+			usingVirtualScreenSize = false;
+		}
+		else
+		{
+			virtualScreenSpaceRatio = Vector2Divide(virtualScreenSize, screenSize);
+		}
+
+		renderSize = virtualScreenSize;
 
 		camera.zoom = 1;
 		camera.offset = { };
 		renderTexture = LoadRenderTexture((int)renderSize.x, (int)renderSize.y);
 
 		aspectRatio = renderSize.x / renderSize.y;
-		SetRenderPosition();
+
+		if (center)
+			CenterRenderPosition();
+		else
+		{
+			auto ratio = Vector2Divide(renderPosition, screenSize); 
+			SetRenderPosition(ratio);
+		}
+		
+		cameras.push_back(this);
 	}
 
 	Camera::~Camera()
 	{
-		if (!terminated) 
-			Terminate();
+		if (terminated) return;
+
+		Terminate();
 	}
 
 	void Camera::Terminate()
 	{
 		UnloadRenderTexture(renderTexture);
 		terminated = true;
+		cameras.erase(std::find(cameras.begin(), cameras.end(), this));
 	}
 
 	void Camera::Update()
 	{
+		isMousePositionCached = false;
+
 		if (!IsWindowResized())	return;
+		int screenWidth = 0;
 
-		Vector2 size = renderSize;
-
-		renderSize.y = (float)GetScreenHeight();
-		int screenWidth = GetScreenWidth();
+		if (usingVirtualScreenSize)
+		{
+			renderSize.y = virtualScreenSpaceRatio.y * GetScreenHeight();
+			screenWidth = virtualScreenSpaceRatio.x * GetScreenWidth();
+		}
+		else
+		{
+			renderSize.y = (float)GetScreenHeight();
+			screenWidth = GetScreenWidth();
+		}
+		 
 		renderSize.x = aspectRatio * renderSize.y;
 
 		if (renderSize.x > screenWidth)
@@ -90,12 +138,94 @@ namespace Render
 			renderSize.x = screenWidth;
 		}
 
-		SetRenderPosition();	
-	}
-	void Camera::SetRenderPosition()
-	{
-		if (!center) return;
+		if (center)
+			CenterRenderPosition();
+		else
+			SetRenderPosition(relativePosition);
 
+		
+	}
+
+	void Camera::DrawFrameBuffer()
+	{
+		for (auto camera : cameras)
+		{
+			if (!camera->isActive) 
+				continue;
+
+			DrawTexturePro(camera->renderTexture.texture,
+				{ 0, 0, (float)camera->renderTexture.texture.width, -(float)camera->renderTexture.texture.height },
+				{ camera->renderPosition.x, camera->renderPosition.y, camera->renderSize.x, camera->renderSize.y },
+				{ 0, 0 }, 0, camera->tintColor);
+		}
+	}
+
+	Vector2Int Camera::GetMousePosition(int cameraID)
+	{
+		auto it = std::find_if(cameras.begin(), cameras.end(), [&cameraID](const Camera* camera) {
+			return camera->id == cameraID;
+			});
+
+		if (it == cameras.end())
+			return ::GetMousePosition();
+
+		return (*it)->GetMousePosition();
+	}
+
+	bool Camera::IsMouseWithinBounds(int cameraID)
+	{
+		auto it = std::find_if(cameras.begin(), cameras.end(), [&cameraID](const Camera* camera) {
+			return camera->id == cameraID;
+			});
+
+		if (it == cameras.end())
+			return false;
+
+		return (*it)->IsMouseWithinBounds();
+	}
+
+	vector<int> Camera::GetAllCameraIDs()
+	{
+		vector<int> ids;
+		ids.reserve(cameras.size());
+
+		for (auto camera : cameras)
+			ids.push_back(camera->id);
+
+		return ids;
+	}
+
+	bool Camera::IsMouseWithinBounds()
+	{
+		Rectangle rectangle(renderPosition.x, renderPosition.y, renderSize.x, renderSize.y);
+		return CheckCollisionPointRec(::GetMousePosition(), rectangle);
+	}
+
+	Vector2Int Camera::TransformPoint(Vector2Int position)
+	{
+		Vector2 point = Vector2Subtract(position, renderPosition);
+		point = GetScreenToWorld2D(point, camera);
+
+		Vector2 pixelSize(renderTexture.texture.width, renderTexture.texture.height);
+		Vector2 ratio = Vector2Divide(pixelSize, renderSize);
+
+		return Vector2Multiply(point, ratio);
+	}
+
+	Camera& Camera::GetCameraFromID(int id)
+	{
+		auto it = std::find_if(cameras.begin(), cameras.end(), [&id](const Camera* camera) {
+			return camera->id == id;
+			});
+
+		if (it == cameras.end())
+			throw std::exception("Camera Does Not Exist");
+
+		return *(*it);
+	}
+
+	void Camera::CenterRenderPosition()
+	{
 		int screenWidth = GetScreenWidth();
 		int screenHeight = GetScreenHeight();
 
